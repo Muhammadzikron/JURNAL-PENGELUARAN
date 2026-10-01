@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<link rel="manifest" href="manifest.json">
+<title>Jurnal Pengeluaran</title>
+<style>
+:root{--g:#14532d;--g2:#166534;--bg:#f4f7f5;--card:#fff;--text:#17201a;--muted:#6b756e;--danger:#b91c1c}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(135deg,var(--g),#1f7a45);color:white;padding:22px 18px 28px;border-radius:0 0 24px 24px}
+header h1{margin:0 0 5px;font-size:24px}header p{margin:0;opacity:.85;font-size:13px}
+.wrap{max-width:720px;margin:auto;padding:0 14px 30px}.summary{margin-top:-16px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:var(--card);border-radius:16px;padding:15px;box-shadow:0 4px 18px #0000000d}.summary .card:first-child{grid-column:1/-1}
+.label{font-size:12px;color:var(--muted)}.big{font-size:24px;font-weight:750;margin-top:3px}
+form{margin-top:14px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{margin-bottom:10px}
+label{display:block;font-size:12px;font-weight:650;margin-bottom:5px}input,select,button{width:100%;font:inherit}
+input,select{padding:12px;border:1px solid #d7ded9;border-radius:11px;background:#fff;outline:none}
+input:focus,select:focus{border-color:var(--g2);box-shadow:0 0 0 3px #16653418}
+button{border:0;border-radius:11px;padding:12px 14px;font-weight:700;cursor:pointer}
+.primary{background:var(--g);color:#fff}.secondary{background:#e9f0eb;color:var(--g)}.danger{background:#fee2e2;color:var(--danger)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.toolbar{display:flex;gap:8px;margin:14px 0 10px}.toolbar select{flex:1}
+.item{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:13px 0;border-bottom:1px solid #edf0ee}
+.item:last-child{border-bottom:0}.desc{font-weight:700}.meta{font-size:12px;color:var(--muted);margin-top:3px}
+.amount{font-weight:800;white-space:nowrap}.itemBtns{display:flex;gap:5px;margin-top:6px}.itemBtns button{width:auto;padding:6px 8px;font-size:11px}
+.empty{text-align:center;color:var(--muted);padding:28px 10px}
+footer{text-align:center;color:var(--muted);font-size:11px;margin-top:18px}
+@media(max-width:480px){.row{grid-template-columns:1fr}.summary{grid-template-columns:1fr 1fr}.summary .card:first-child{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>Jurnal Pengeluaran</h1><p>Catat pengeluaran harian dengan cepat • tersimpan di HP</p></div></header>
+<main class="wrap">
+<section class="summary">
+  <div class="card"><div class="label">Total bulan terpilih</div><div class="big" id="monthTotal">Rp0</div></div>
+  <div class="card"><div class="label">Hari ini</div><div class="big" id="todayTotal">Rp0</div></div>
+  <div class="card"><div class="label">Jumlah transaksi</div><div class="big" id="countTotal">0</div></div>
+</section>
+
+<form id="expenseForm" class="card">
+  <input type="hidden" id="editId">
+  <div class="row">
+    <div class="field"><label for="date">Tanggal</label><input id="date" type="date" required></div>
+    <div class="field"><label for="category">Kategori</label>
+      <select id="category">
+        <option>Makan & Minum</option><option>Transportasi</option><option>Belanja</option>
+        <option>Tagihan</option><option>Pendidikan</option><option>Kesehatan</option>
+        <option>Rumah Tangga</option><option>Hiburan</option><option>Lainnya</option>
+      </select>
+    </div>
+  </div>
+  <div class="field"><label for="desc">Keterangan</label><input id="desc" placeholder="Contoh: makan siang" required></div>
+  <div class="row">
+    <div class="field"><label for="amount">Nominal (Rp)</label><input id="amount" type="number" min="0" step="100" placeholder="25000" required></div>
+    <div class="field"><label for="method">Metode</label>
+      <select id="method"><option>Cash</option><option>Transfer</option><option>QRIS</option><option>Debit</option><option>Lainnya</option></select>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="primary" type="submit" id="saveBtn">+ Simpan Pengeluaran</button>
+    <button class="secondary" type="button" id="cancelBtn" style="display:none">Batal Edit</button>
+  </div>
+</form>
+
+<div class="toolbar">
+  <input id="month" type="month" aria-label="Pilih bulan">
+  <button class="secondary" id="exportBtn" type="button">Export CSV</button>
+</div>
+
+<section class="card">
+  <div style="font-weight:800;margin-bottom:4px">Riwayat Pengeluaran</div>
+  <div id="list"></div>
+</section>
+<footer>Data tersimpan secara lokal di perangkat ini. Tidak dikirim ke server.</footer>
+</main>
+
+<script>
+const KEY="jurnal_pengeluaran_v1";
+let data=JSON.parse(localStorage.getItem(KEY)||"[]");
+const $=id=>document.getElementById(id);
+const today=new Date().toISOString().slice(0,10);
+$("date").value=today;
+$("month").value=today.slice(0,7);
+
+function rupiah(n){return new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(n||0)}
+function save(){localStorage.setItem(KEY,JSON.stringify(data))}
+function render(){
+  const m=$("month").value;
+  const rows=data.filter(x=>x.date.startsWith(m)).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+  const total=rows.reduce((s,x)=>s+Number(x.amount),0);
+  const t=data.filter(x=>x.date===today).reduce((s,x)=>s+Number(x.amount),0);
+  $("monthTotal").textContent=rupiah(total); $("todayTotal").textContent=rupiah(t); $("countTotal").textContent=rows.length;
+  $("list").innerHTML=rows.length?rows.map(x=>`
+    <div class="item">
+      <div><div class="desc">${esc(x.desc)}</div><div class="meta">${fmtDate(x.date)} • ${esc(x.category)} • ${esc(x.method)}</div>
+      <div class="itemBtns"><button class="secondary" onclick="editItem(${x.id})">Edit</button><button class="danger" onclick="deleteItem(${x.id})">Hapus</button></div></div>
+      <div class="amount">${rupiah(x.amount)}</div>
+    </div>`).join(""):`<div class="empty">Belum ada pengeluaran pada bulan ini.</div>`;
+}
+function fmtDate(s){return new Date(s+"T00:00:00").toLocaleDateString("id-ID",{day:"2-digit",month:"short",year:"numeric"})}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+$("expenseForm").addEventListener("submit",e=>{
+ e.preventDefault();
+ const id=$("editId").value;
+ const obj={id:id?Number(id):Date.now(),date:$("date").value,category:$("category").value,desc:$("desc").value.trim(),amount:Number($("amount").value),method:$("method").value};
+ if(id){data=data.map(x=>x.id===Number(id)?obj:x)}else data.push(obj);
+ save(); resetForm(); render();
+});
+function editItem(id){
+ const x=data.find(x=>x.id===id); if(!x)return;
+ $("editId").value=x.id;$("date").value=x.date;$("category").value=x.category;$("desc").value=x.desc;$("amount").value=x.amount;$("method").value=x.method;
+ $("saveBtn").textContent="Simpan Perubahan";$("cancelBtn").style.display="block";scrollTo({top:0,behavior:"smooth"});
+}
+function deleteItem(id){if(confirm("Hapus transaksi ini?")){data=data.filter(x=>x.id!==id);save();render()}}
+function resetForm(){$("editId").value="";$("date").value=today;$("desc").value="";$("amount").value="";$("saveBtn").textContent="+ Simpan Pengeluaran";$("cancelBtn").style.display="none"}
+$("cancelBtn").onclick=resetForm;$("month").onchange=render;
+$("exportBtn").onclick=()=>{
+ const m=$("month").value; const rows=data.filter(x=>x.date.startsWith(m));
+ const csv=[["Tanggal","Kategori","Keterangan","Nominal","Metode"],...rows.map(x=>[x.date,x.category,x.desc,x.amount,x.method])]
+ .map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));a.download=`jurnal-pengeluaran-${m}.csv`;a.click();
+};
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+render();
+</script>
+</body>
+</html>
